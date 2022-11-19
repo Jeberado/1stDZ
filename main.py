@@ -1,12 +1,27 @@
 import functools
-import sys
+import os
 from collections import OrderedDict, Counter
 from typing import Any, TypeAlias, Callable
 
-import requests
+import psutil
+import requests as requests
 
 CACHED_DICT: TypeAlias = dict[str, Any]
 DECORATOR_FUNCTION: TypeAlias = Callable[[], None]
+
+
+def record_memory_usage(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        process = psutil.Process(os.getpid())
+        mem_start = process.memory_info()[0]
+        rt = func(*args, **kwargs)
+        mem_end = process.memory_info()[0]
+        diff_kb = (mem_end - mem_start) // 1000
+        print(f'memory usage of {func.__name__}: {diff_kb} KB')
+        return rt
+
+    return wrapper
 
 
 def cache(max_limit=64):
@@ -32,23 +47,17 @@ def cache(max_limit=64):
     return internal
 
 
-def memory_monitoring(some_function: Callable) -> DECORATOR_FUNCTION:
-    def get_size_function(*args):
-        print(sys.getsizeof(some_function(args)))
-
-    return get_size_function
-
-
+@record_memory_usage
+@cache(max_limit=100)
 def fetch_url(url, first_n=100):
     """Fetch a given url"""
     res = requests.get(url)
     return res.content[:first_n] if first_n else res.content
 
 
-link = "https://docs.python.org/3/library/venv.html"
+link = "https://pavel-karateev.gitbook.io/intermediate-python/dekoratory/function_caching"
 
-@memory_monitoring
-@cache(max_limit=100)
+
 def catch_cache(result_of_request: int | bytes) -> CACHED_DICT:
     return Counter(result_of_request)
 
